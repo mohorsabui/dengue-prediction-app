@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Dengue AI Ultra</title>
+
+<!-- LIBRARIES -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/particles.js"></script>
+
+<style>
+
+/* 🌌 BACKGROUND */
+body {
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+    color: white;
+}
+
+/* PARTICLES */
+#particles-js {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+}
+
+/* SIDEBAR */
+.sidebar {
+    width: 220px;
+    height: 100vh;
+    position: fixed;
+    background: rgba(0,0,0,0.7);
+    padding: 20px;
+}
+.sidebar a {
+    display: block;
+    color: white;
+    padding: 10px;
+    text-decoration: none;
+}
+.sidebar a:hover {
+    background: #00ffd5;
+}
+
+/* MAIN */
+.main {
+    margin-left: 240px;
+    padding: 20px;
+}
+
+/* GLASS */
+.glass {
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(10px);
+    padding: 20px;
+    border-radius: 15px;
+    margin-bottom: 15px;
+}
+
+/* INPUT */
+input, select {
+    width: 100%;
+    margin: 6px 0;
+}
+
+/* RANGE STYLE */
+input[type=range] {
+    -webkit-appearance: none;
+    height: 8px;
+    border-radius: 5px;
+    background: linear-gradient(to right, #00ffd5, #00aaff);
+}
+input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: white;
+    cursor: pointer;
+}
+
+/* BUTTON */
+button {
+    padding: 10px;
+    background: #00ffd5;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+/* CHAT */
+.chat-box {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+</style>
+</head>
+
+<body>
+
+<!-- PARTICLES -->
+<div id="particles-js"></div>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+<h2>🦟 Dengue AI</h2>
+<a onclick="showSection('dashboard')">Dashboard</a>
+<a onclick="showSection('prediction')">Prediction</a>
+<a onclick="showSection('history')">History</a>
+<a href="/logout">Logout</a>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+<!-- DASHBOARD -->
+<div id="dashboard" class="glass">
+<h2>📊 Dashboard</h2>
+<p>Welcome to Dengue AI System</p>
+</div>
+
+<!-- PREDICTION -->
+<div id="prediction" class="glass">
+<h2>🚀 Prediction</h2>
+
+<form action="/predict" method="POST">
+
+<label>Days: <span id="days_val">5</span></label>
+<input type="range" name="days" min="1" max="10" value="5"
+oninput="days_val.innerText=this.value">
+
+<label>Temperature: <span id="temp_val">37</span></label>
+<input type="range" name="temp" min="35" max="42" step="0.1" value="37"
+oninput="temp_val.innerText=this.value">
+
+<label>WBC: <span id="wbc_val">7000</span></label>
+<input type="range" name="wbc" min="4000" max="11000" value="7000"
+oninput="wbc_val.innerText=this.value">
+
+<select name="headache"><option value="1">Headache - Yes</option><option value="0">No</option></select>
+<select name="eye_pain"><option value="1">Eye Pain - Yes</option><option value="0">No</option></select>
+<select name="joint_pain"><option value="1">Joint Pain - Yes</option><option value="0">No</option></select>
+<select name="metallic"><option value="1">Metallic Taste - Yes</option><option value="0">No</option></select>
+<select name="appetite"><option value="1">Loss Appetite - Yes</option><option value="0">No</option></select>
+<select name="abdominal"><option value="1">Abdominal Pain - Yes</option><option value="0">No</option></select>
+<select name="nausea"><option value="1">Nausea - Yes</option><option value="0">No</option></select>
+<select name="diarrhoea"><option value="1">Diarrhoea - Yes</option><option value="0">No</option></select>
+
+<label>Hemoglobin: <span id="hb_val">14</span></label>
+<input type="range" name="hemoglobin" min="8" max="20" step="0.1" value="14"
+oninput="hb_val.innerText=this.value">
+
+<label>Hematocrit: <span id="hct_val">40</span></label>
+<input type="range" name="hematocrit" min="20" max="60" step="0.1" value="40"
+oninput="hct_val.innerText=this.value">
+
+<label>Platelets: <span id="plt_val">250000</span></label>
+<input type="range" name="platelet" min="10000" max="500000" step="1000" value="250000"
+oninput="plt_val.innerText=this.value">
+
+<button onclick="clickSound()">Predict</button>
+
+</form>
+
+{% if prediction_text %}
+<h3>{{ prediction_text }}</h3>
+<h4>Risk: {{ probability }}%</h4>
+{% endif %}
+
+</div>
+
+<!-- HISTORY -->
+<div id="history" class="glass">
+<h2>📈 History</h2>
+<canvas id="chart"></canvas>
+</div>
+
+<!-- CHAT -->
+<div class="glass">
+<h3>🤖 Chatbot</h3>
+<input id="msg">
+<button onclick="send()">Send</button>
+<div id="chat" class="chat-box"></div>
+</div>
+
+</div>
+
+<!-- DATA -->
+<script id="history-data" type="application/json">
+{{ history | default([]) | tojson }}
+</script>
+
+<!-- CHART -->
+<script>
+let data = JSON.parse(document.getElementById("history-data").textContent);
+
+new Chart(document.getElementById("chart"), {
+    type: 'bar',
+    data: {
+        labels: data.map(x=>x.time),
+        datasets: [{
+            label: 'Risk %',
+            data: data.map(x=>x.percent),
+            animation: { duration: 1500 }
+        }]
+    }
+});
+</script>
+
+<!-- SIDEBAR -->
+<script>
+function showSection(id){
+    document.getElementById("dashboard").style.display="none";
+    document.getElementById("prediction").style.display="none";
+    document.getElementById("history").style.display="none";
+
+    document.getElementById(id).style.display="block";
+}
+showSection("dashboard");
+</script>
+
+<!-- CHAT -->
+<script>
+function send(){
+let m=document.getElementById("msg").value;
+
+fetch("/chat",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({message:m})
+})
+.then(r=>r.json())
+.then(d=>{
+document.getElementById("chat").innerHTML +=
+"<p>You: "+m+"</p><p>Bot: "+d.reply+"</p>";
+speak(d.reply);
+});
+}
+</script>
+
+<!-- SOUND -->
+<script>
+function clickSound(){
+new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3").play();
+}
+</script>
+
+<!-- VOICE -->
+<script>
+function speak(text){
+let s=new SpeechSynthesisUtterance(text);
+speechSynthesis.speak(s);
+}
+</script>
+
+<!-- PARTICLES -->
+<script>
+particlesJS("particles-js", {
+  particles: {
+    number: { value: 80 },
+    size: { value: 3 },
+    move: { speed: 2 },
+    line_linked: { enable: true }
+  }
+});
+</script>
+
+</body>
+</html>

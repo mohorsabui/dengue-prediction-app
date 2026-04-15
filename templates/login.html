@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Login - Dengue AI</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #1f4037, #99f2c8);
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* GLASS CARD */
+.card {
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(12px);
+    padding: 30px;
+    border-radius: 15px;
+    width: 320px;
+    box-shadow: 0 0 30px rgba(0,0,0,0.2);
+    animation: fadeIn 1s ease-in;
+}
+
+/* INPUT */
+input {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 8px;
+    border: none;
+}
+
+/* BUTTON */
+button {
+    width: 100%;
+    padding: 10px;
+    background: #00ffcc;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+button:hover {
+    transform: scale(1.05);
+}
+
+/* LINK */
+a {
+    color: white;
+    text-decoration: none;
+}
+
+/* ERROR */
+.error {
+    color: red;
+    text-align: center;
+}
+
+/* ANIMATION */
+@keyframes fadeIn {
+    from {opacity: 0; transform: translateY(20px);}
+    to {opacity: 1;}
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="card">
+<h2>🔐 Login</h2>
+
+<form method="POST">
+<input name="username" placeholder="Username" required>
+<input name="password" type="password" placeholder="Password" required>
+
+<button>Login</button>
+</form>
+
+{% if error %}
+<p class="error">{{ error }}</p>
+{% endif %}
+
+<p>Don't have an account? <a href="/signup">Signup</a></p>
+</div>
+
+</body>
+</html>
