@@ -1,12 +1,29 @@
 from flask import Flask, render_template, request, redirect, session
 import pickle
 from datetime import datetime
+import os
+from dotenv import load_dotenv
+import google.generativeai as genai
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = "secret123"
 
-# Load model
-model = pickle.load(open("dengue_model.pkl", "rb"))
+# Configure Gemini API
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    print(f"Gemini API configured successfully")
+else:
+    print("Warning: GEMINI_API_KEY not found in .env file")
+
+# Load dengue prediction model
+dengue_model = pickle.load(open("dengue_model.pkl", "rb"))
+
+# Initialize Gemini model
+model = genai.GenerativeModel("gemini-2.5-flash")
 
 # Storage
 users = {}
@@ -93,8 +110,8 @@ def predict():
         float(request.form["platelet"])
     ]
 
-    pred = model.predict([features])[0]
-    prob = model.predict_proba([features])[0][1]
+    pred = dengue_model.predict([features])[0]
+    prob = dengue_model.predict_proba([features])[0][1]
 
     result = "⚠️ Dengue Positive" if pred == 1 else "✅ No Dengue"
     percent = round(prob * 100, 2)
@@ -117,18 +134,61 @@ def predict():
 # ---------------- CHATBOT ---------------- #
 @app.route("/chat", methods=["POST"])
 def chat():
-    msg = request.json["message"].lower()
-
-    if "fever" in msg:
-        reply = "Take paracetamol, drink fluids, and rest."
-    elif "platelet" in msg:
-        reply = "Papaya leaf juice and coconut water help."
-    elif "dengue" in msg:
-        reply = "Consult a doctor if symptoms worsen."
-    else:
-        reply = "Stay hydrated and monitor symptoms."
-
-    return {"reply": reply}
+    try:
+        user_message = request.json["message"]
+    except:
+        return {"reply": "Invalid request format. Please send a valid JSON message."}
+    
+    # Short, efficient system prompt
+    system_prompt = """You are a dengue medical assistant. Provide safe, concise advice (2-3 sentences max).
+Emphasize: hydration, paracetamol for fever, rest, and avoid aspirin/NSAIDs.
+Warn to see a doctor immediately for: vomiting, bleeding, severe pain, or weakness."""
+    
+    # Retry logic for quota errors
+    import time
+    max_retries = 2
+    retry_delay = 2  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            # Send message to Gemini API
+            full_message = f"{system_prompt}\n\nUser: {user_message}\n\nAssistant:"
+            response = model.generate_content(
+                full_message,
+                generation_config=genai.types.GenerationConfig(
+                    max_output_tokens=300,
+                    temperature=0.5
+                )
+            )
+            
+            reply = response.text.strip()
+            print(f"Gemini API Success (attempt {attempt + 1}): {len(reply)} chars")
+            return {"reply": reply}
+        
+        except Exception as e:
+            error_msg = str(e)
+            print(f"Gemini API Error (attempt {attempt + 1}): {error_msg}")
+            
+            # If 429, retry after delay
+            if "429" in error_msg or "quota" in error_msg.lower():
+                if attempt < max_retries - 1:
+                    print(f"Quota exceeded. Retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    # All retries exhausted
+                    return {
+                        "reply": "The chatbot is temporarily at capacity. Please try again in a moment. Remember: drink fluids, take paracetamol for fever, and rest. See a doctor if symptoms worsen."
+                    }
+            else:
+                # Other errors - don't retry
+                return {
+                    "reply": "I'm having trouble right now. Please consult a healthcare professional if you need medical advice."
+                }
+    
+    return {
+        "reply": "The chatbot is temporarily unavailable. Please try again or consult a healthcare professional."
+    }
 
 # ---------------- RUN ---------------- #
 if __name__ == "__main__":
