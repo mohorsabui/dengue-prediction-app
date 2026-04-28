@@ -4,6 +4,10 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 import google.generativeai as genai
+import csv
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 
 # Load environment variables
 load_dotenv()
@@ -19,8 +23,45 @@ if GEMINI_API_KEY:
 else:
     print("Warning: GEMINI_API_KEY not found in .env file")
 
-# Load dengue prediction model
-dengue_model = pickle.load(open("dengue_model.pkl", "rb"))
+# Model training function
+def train_model():
+    data = []
+    with open('dengue.csv', 'r') as f:
+        reader = csv.reader(f)
+        header = next(reader)  # Skip header
+        for row in reader:
+            data.append([float(x) for x in row])
+    
+    X = [row[:-1] for row in data]
+    y = [row[-1] for row in data]
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    
+    model = LogisticRegression(random_state=42)
+    model.fit(X_train_scaled, y_train)
+    
+    pickle.dump((model, scaler), open("linear_model.pkl", "wb"))
+    print("Model retrained and saved as linear_model.pkl")
+    return model, scaler
+
+# Preprocess input function
+def preprocess_input(features):
+    # Ensure features are floats and handle any cleaning
+    return [float(f) for f in features]
+
+# Load or retrain model
+model_path = 'linear_model.pkl'
+csv_path = 'dengue.csv'
+if not os.path.exists(model_path) or os.path.getmtime(csv_path) > os.path.getmtime(model_path):
+    dengue_model, scaler = train_model()
+    model_mtime = os.path.getmtime(model_path)
+else:
+    dengue_model, scaler = pickle.load(open(model_path, "rb"))
+    model_mtime = os.path.getmtime(model_path)
+    print("Loaded existing model from linear_model.pkl")
 
 # Initialize Gemini model
 model = genai.GenerativeModel("gemini-2.5-flash")
@@ -93,28 +134,46 @@ def predict():
 
     user = session["user"]
 
+    # Check if dataset updated, retrain if needed
+    global dengue_model, scaler, model_mtime
+    if os.path.getmtime(csv_path) > model_mtime:
+        dengue_model, scaler = train_model()
+        model_mtime = os.path.getmtime(model_path)
+
     features = [
-        float(request.form["days"]),
-        float(request.form["temp"]),
-        float(request.form["wbc"]),
-        float(request.form["headache"]),
-        float(request.form["eye_pain"]),
-        float(request.form["joint_pain"]),
-        float(request.form["metallic"]),
-        float(request.form["appetite"]),
-        float(request.form["abdominal"]),
-        float(request.form["nausea"]),
-        float(request.form["diarrhoea"]),
-        float(request.form["hemoglobin"]),
-        float(request.form["hematocrit"]),
-        float(request.form["platelet"])
+        request.form["days"],
+        request.form["temp"],
+        request.form["wbc"],
+        request.form["headache"],
+        request.form["eye_pain"],
+        request.form["joint_pain"],
+        request.form["metallic"],
+        request.form["appetite"],
+        request.form["abdominal"],
+        request.form["nausea"],
+        request.form["diarrhoea"],
+        request.form["hemoglobin"],
+        request.form["hematocrit"],
+        request.form["platelet"]
     ]
 
-    pred = dengue_model.predict([features])[0]
-    prob = dengue_model.predict_proba([features])[0][1]
+    # Preprocess features
+    features = preprocess_input(features)
+
+    # Scale features
+    features_scaled = scaler.transform([features])
+
+    print("FEATURES:", features)
+    print("FEATURES_SCALED:", features_scaled[0])
+
+    pred = dengue_model.predict(features_scaled)[0]
+    prob = dengue_model.predict_proba(features_scaled)[0][1]
 
     result = "⚠️ Dengue Positive" if pred == 1 else "✅ No Dengue"
     percent = round(prob * 100, 2)
+    percent = max(0, min(100, percent))  # Clamp between 0-100
+
+    print("PREDICTION:", percent)
 
     record = {
         "time": datetime.now().strftime("%H:%M:%S"),
