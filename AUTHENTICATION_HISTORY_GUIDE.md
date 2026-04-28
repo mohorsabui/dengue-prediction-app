@@ -1,108 +1,71 @@
-# Dengue Prediction App - Updated Authentication & History System
+# Dengue Prediction App - Permanent Storage System (SQLite)
 
-## Changes Made
+## Overview
 
-### 1. **Persistent User Storage** 
-- Created `history.py` module with persistent storage functions
-- User credentials now saved to `data/users.json` (survives app restarts)
-- Each user gets their own history file: `data/history/{username}_history.json`
+The authentication and history system has been upgraded from JSON files to **SQLite**, providing permanent, reliable, and secure storage that survives app restarts and prevents data corruption.
 
-### 2. **Fixed Login Logic**
-- Updated `/login` route to verify credentials from persistent storage
-- Fixed issue where users couldn't login on subsequent sessions
-- Added proper validation and error messages
+## Key Upgrades
 
-### 3. **Fixed Signup Logic**
-- Updated `/signup` route to save user data to `data/users.json`
-- Creates individual history file for each new user
-- Added duplicate username check
-- Validates empty fields
+### 1. **SQLite Database Engine**
+- **File**: `data/dengue_app.db`
+- Replaces legacy `data/users.json` and `data/history/*.json` files.
+- Provides ACID compliance (Atomicity, Consistency, Isolation, Durability) to ensure data is never lost or corrupted during crashes or restarts.
 
-### 4. **History Tracking Per User**
-- Every prediction is now saved with:
-  - Timestamp (ISO format + readable time)
-  - Date
-  - Prediction result (Dengue Positive/Negative)
-  - Probability percentage
-- History persists across sessions and app restarts
-- Each user only sees their own history
+### 2. **Password Hashing (Security)**
+- Passwords are no longer stored in plain text.
+- Uses `werkzeug.security` (PBKDF2 with salt) to securely hash passwords.
+- Even if the database file is accessed, user passwords remain protected.
 
-## How It Works
+### 3. **Automatic Migration**
+- On the first run, the system automatically detects legacy JSON files.
+- It imports all users and their prediction history into the new SQLite database.
+- It automatically hashes legacy plain-text passwords during the import.
 
-### Directory Structure
-```
-data/
-├── users.json              # All registered users and passwords
-└── history/
-    ├── user1_history.json
-    ├── user2_history.json
-    └── ...
-```
+### 4. **Improved History Management**
+- All history is stored in a single `history` table with a foreign key relationship to users.
+- Faster queries and better data integrity.
 
-### User Flow
-1. **Signup**: User registers → Data saved to `data/users.json` → Empty history file created
-2. **Login**: Credentials verified from `data/users.json` → Session created
-3. **Dashboard**: User history loaded from `data/history/{username}_history.json`
-4. **Predict**: Prediction made → Record saved to user's history file
-5. **History**: User can see all their past predictions
+## Database Schema
 
-## Testing
+### Users Table
+| Column | Type | Description |
+| --- | --- | --- |
+| id | INTEGER | Primary Key |
+| username | TEXT | Unique Username |
+| password | TEXT | Hashed Password |
+| created_at | TEXT | ISO Timestamp |
 
-### Manual Testing Steps
+### History Table
+| Column | Type | Description |
+| --- | --- | --- |
+| id | INTEGER | Primary Key |
+| username | TEXT | Foreign Key to Users |
+| timestamp | TEXT | ISO Timestamp |
+| time | TEXT | HH:MM:SS |
+| date | TEXT | YYYY-MM-DD |
+| prediction | TEXT | Result Text |
+| percent | REAL | Probability Percentage |
 
-1. **Test Signup**
-   - Go to `/signup`
-   - Create new user (e.g., "testuser" / "password123")
-   - Should be redirected to login
-   - Check `data/users.json` - should contain the new user
+## How to Verify Persistence
 
-2. **Test Login**
-   - Use the credentials from signup
-   - Should access dashboard
-   - Check that session is active
+1. **Signup**: Create an account on the `/signup` page.
+2. **Login**: Log in with your credentials.
+3. **Restart**: Stop the Flask server (`Ctrl+C`) and start it again (`flask run`).
+4. **Login Again**: Use the same credentials. You will find that:
+   - Your account still exists.
+   - Your prediction history is fully preserved.
 
-3. **Test Persistent Login**
-   - Make a prediction
-   - Logout
-   - Login again with same credentials
-   - Dashboard should load with previous history
+## Technical Details
 
-4. **Test History**
-   - Make multiple predictions
-   - Each should appear in history
-   - Check `data/history/{username}_history.json` file
-   - Logout and login - history should persist
-
-### File Checking
-```bash
-# Check users registered
-cat data/users.json
-
-# Check specific user's history
-cat data/history/testuser_history.json
-```
-
-## API Changes
+The `history.py` module now handles all database interactions using the `sqlite3` library. The API remains compatible with `app.py`, so no changes were required in the main application logic.
 
 ### New Functions in `history.py`
-- `init_storage()` - Initialize storage on app startup
-- `register_user(username, password)` - Save new user
-- `verify_user(username, password)` - Check credentials
-- `get_user_history(username)` - Fetch user's history
-- `add_prediction_record(username, prediction_text, probability)` - Save prediction
-- `clear_user_history(username)` - Clear user history (utility)
+- `get_db_connection()`: Manages SQLite connections.
+- `migrate_from_json()`: Handles legacy data import.
+- `init_storage()`: Creates tables and triggers migration.
 
-## Security Notes
-⚠️ **Important**: 
-- Passwords are currently stored in plain text (NOT recommended for production)
-- For production, implement proper password hashing (e.g., bcrypt)
-- Use environment variables for sensitive data
-- Consider using a database instead of JSON files for scalability
+## Troubleshooting
 
-## Next Steps (Recommendations)
-1. Add password hashing using `werkzeug.security` or `bcrypt`
-2. Migrate to a database (SQLite, PostgreSQL)
-3. Add user email verification
-4. Add "Clear History" button in dashboard
-5. Add export history as CSV feature
-6. Add time-based filtering for history
+If you encounter "Invalid credentials" after migration:
+1. Ensure you are using the correct casing for your username (usernames are currently case-sensitive).
+2. Check `data/dengue_app.db` using a SQLite browser if you need to verify the data manually.
