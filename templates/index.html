@@ -91,8 +91,35 @@ button {
 
 /* CHAT */
 .chat-box {
-    max-height: 200px;
+    max-height: 300px;
     overflow-y: auto;
+    background: rgba(0,0,0,0.3);
+    padding: 10px;
+    border-radius: 10px;
+    margin-top: 10px;
+}
+.chat-box div {
+    margin: 8px 0;
+    padding: 10px;
+    border-radius: 8px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+.user-msg {
+    background: rgba(0, 255, 213, 0.15);
+    border-left: 4px solid #00ffd5;
+    text-align: right;
+}
+.bot-msg {
+    background: rgba(255, 255, 255, 0.08);
+    border-left: 4px solid #00aaff;
+    text-align: left;
+}
+.chat-box strong {
+    display: block;
+    font-size: 0.8em;
+    margin-bottom: 4px;
+    opacity: 0.7;
 }
 
 </style>
@@ -177,8 +204,10 @@ oninput="plt_val.innerText=this.value">
 <!-- CHAT -->
 <div class="glass">
 <h3>🤖 Chatbot</h3>
-<input id="msg">
-<button onclick="send()">Send</button>
+<div style="display: flex; gap: 10px;">
+    <input id="msg" placeholder="Type your message..." style="flex: 1;">
+    <button onclick="send()">Send</button>
+</div>
 <div id="chat" class="chat-box"></div>
 </div>
 
@@ -192,32 +221,42 @@ oninput="plt_val.innerText=this.value">
 <!-- CHART -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    let data = JSON.parse(document.getElementById("history-data").textContent);
-    
-    if (data && data.length > 0) {
-        predictionChart = new Chart(document.getElementById("chart"), {
-            type: 'bar',
-            data: {
-                labels: data.map(x=>x.time),
-                datasets: [{
-                    label: 'Risk %',
-                    data: data.map(x=>x.percent),
-                    backgroundColor: 'rgba(0, 255, 213, 0.6)',
-                    borderColor: 'rgba(0, 255, 213, 1)',
-                    borderWidth: 2,
-                    animation: { duration: 1500 }
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 100
+    try {
+        const dataElement = document.getElementById("history-data");
+        if (!dataElement) return;
+        
+        let data = JSON.parse(dataElement.textContent);
+        
+        if (data && data.length > 0) {
+            const ctx = document.getElementById("chart");
+            if (!ctx) return;
+            
+            predictionChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(x=>x.time),
+                    datasets: [{
+                        label: 'Risk %',
+                        data: data.map(x=>x.percent),
+                        backgroundColor: 'rgba(0, 255, 213, 0.6)',
+                        borderColor: 'rgba(0, 255, 213, 1)',
+                        borderWidth: 2,
+                        animation: { duration: 1500 }
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
+    } catch (e) {
+        console.error("Dashboard init error:", e);
     }
 });
 </script>
@@ -246,9 +285,25 @@ body:JSON.stringify({message:m})
 })
 .then(r=>r.json())
 .then(d=>{
-document.getElementById("chat").innerHTML +=
-"<p>You: "+m+"</p><p>Bot: "+d.reply+"</p>";
-speak(d.reply);
+    const chat = document.getElementById("chat");
+    
+    // Create user message
+    const uDiv = document.createElement("div");
+    uDiv.className = "user-msg";
+    uDiv.innerHTML = "<strong>You</strong>";
+    uDiv.appendChild(document.createTextNode(m));
+    chat.appendChild(uDiv);
+    
+    // Create bot message
+    const bDiv = document.createElement("div");
+    bDiv.className = "bot-msg";
+    bDiv.innerHTML = "<strong>Assistant</strong>";
+    bDiv.appendChild(document.createTextNode(d.reply));
+    chat.appendChild(bDiv);
+    
+    document.getElementById("msg").value = ""; 
+    chat.scrollTop = chat.scrollHeight;
+    speak(d.reply);
 });
 }
 </script>

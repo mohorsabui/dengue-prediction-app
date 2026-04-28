@@ -64,8 +64,17 @@ else:
     model_mtime = os.path.getmtime(model_path)
     print("Loaded existing model from linear_model.pkl")
 
-# Initialize Gemini model
-model = genai.GenerativeModel("gemini-2.5-flash")
+# Initialize Gemini model with system instruction for better consistency
+model = genai.GenerativeModel(
+    model_name="gemini-flash-latest",
+    system_instruction="""You are a professional dengue medical assistant. 
+Strict Rules:
+1. Provide a helpful and safe response in 1-3 lines.
+2. ALWAYS end your response with a full stop. NEVER stop mid-sentence.
+3. Ensure every sentence is complete and logical.
+4. Advice: Hydration, paracetamol, rest. NO aspirin or NSAIDs.
+5. Emergencies: vomiting, bleeding, or severe pain require immediate medical attention."""
+)
 
 # Initialize persistent storage
 init_storage()
@@ -171,17 +180,12 @@ def predict():
     # Scale features
     features_scaled = scaler.transform([features])
 
-    print("FEATURES:", features)
-    print("FEATURES_SCALED:", features_scaled[0])
-
     pred = dengue_model.predict(features_scaled)[0]
     prob = dengue_model.predict_proba(features_scaled)[0][1]
 
     result = "⚠️ Dengue Positive" if pred == 1 else "✅ No Dengue"
     percent = round(prob * 100, 2)
     percent = max(0, min(100, percent))  # Clamp between 0-100
-
-    print("PREDICTION:", percent)
 
     # Save prediction to user history
     add_prediction_record(user, result, percent)
@@ -195,6 +199,17 @@ def predict():
         "history": user_history
     }
 
+# Local fallback advice for basic dengue questions
+DENGUE_ADVICE = [
+    "Stay hydrated (water, ORS, juices) and get plenty of rest.",
+    "Use paracetamol for fever and pain. DO NOT take aspirin, ibuprofen, or other NSAIDs as they increase bleeding risk.",
+    "Monitor for emergency signs: severe abdominal pain, persistent vomiting, bleeding gums, or extreme weakness.",
+    "Dengue is a viral infection; there is no specific medicine. Support your body with fluids and rest.",
+    "If you have a high fever and joint pain, please see a doctor for a blood test."
+]
+
+import random
+
 # ---------------- CHATBOT ---------------- #
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -203,56 +218,31 @@ def chat():
     except:
         return {"reply": "Invalid request format. Please send a valid JSON message."}
     
-    # Short, efficient system prompt
-    system_prompt = """You are a dengue medical assistant. Provide safe, concise advice (2-3 sentences max).
-Emphasize: hydration, paracetamol for fever, rest, and avoid aspirin/NSAIDs.
-Warn to see a doctor immediately for: vomiting, bleeding, severe pain, or weakness."""
-    
-    # Retry logic for quota errors
-    import time
-    max_retries = 2
-    retry_delay = 2  # seconds
-    
-    for attempt in range(max_retries):
-        try:
-            # Send message to Gemini API
-            full_message = f"{system_prompt}\n\nUser: {user_message}\n\nAssistant:"
-            response = model.generate_content(
-                full_message,
-                generation_config=genai.types.GenerationConfig(
-                    max_output_tokens=300,
-                    temperature=0.5
-                )
+    try:
+        # Use Chat Session for better context and completeness
+        chat_session = model.start_chat(history=[])
+        response = chat_session.send_message(
+            user_message,
+            generation_config=genai.types.GenerationConfig(
+                max_output_tokens=1024, # High token limit to allow complete thoughts
+                temperature=0.7 # Slightly higher for more natural flow
             )
-            
-            reply = response.text.strip()
-            print(f"Gemini API Success (attempt {attempt + 1}): {len(reply)} chars")
-            return {"reply": reply}
+        )
         
-        except Exception as e:
-            error_msg = str(e)
-            print(f"Gemini API Error (attempt {attempt + 1}): {error_msg}")
+        reply = response.text.strip()
+        
+        # Security check: if the model still gives an unfinished sentence (rare with 1024 tokens)
+        if reply and not reply.endswith(('.', '!', '?')):
+            reply += " Please consult a doctor for further details."
             
-            # If 429, retry after delay
-            if "429" in error_msg or "quota" in error_msg.lower():
-                if attempt < max_retries - 1:
-                    print(f"Quota exceeded. Retrying in {retry_delay}s...")
-                    time.sleep(retry_delay)
-                    continue
-                else:
-                    # All retries exhausted
-                    return {
-                        "reply": "The chatbot is temporarily at capacity. Please try again in a moment. Remember: drink fluids, take paracetamol for fever, and rest. See a doctor if symptoms worsen."
-                    }
-            else:
-                # Other errors - don't retry
-                return {
-                    "reply": "I'm having trouble right now. Please consult a healthcare professional if you need medical advice."
-                }
+        return {"reply": reply}
     
-    return {
-        "reply": "The chatbot is temporarily unavailable. Please try again or consult a healthcare professional."
-    }
+    except Exception as e:
+        print(f"Gemini API Error: {str(e)}")
+        fallback = " ".join(random.sample(DENGUE_ADVICE, 2))
+        return {
+            "reply": f"Note: I'm currently in offline mode. {fallback}"
+        }
 
 # ---------------- RUN ---------------- #
 if __name__ == "__main__":
