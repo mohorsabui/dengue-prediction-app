@@ -2,91 +2,130 @@
 <html>
 <head>
 <title>Login - Dengue AI</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
+:root {
+    --bg-start: #081b29;
+    --bg-end: #0e4a6d;
+    --card: rgba(11, 28, 51, 0.88);
+    --accent: #60e0d3;
+    --accent-dark: #17938f;
+    --text: #f5f8fb;
+    --muted: rgba(245, 248, 251, 0.72);
+}
+
+* {
+    box-sizing: border-box;
+}
+
 body {
     margin: 0;
-    font-family: 'Poppins', sans-serif;
-    background: linear-gradient(135deg, #1f4037, #99f2c8);
-    height: 100vh;
+    min-height: 100vh;
+    font-family: 'Inter', sans-serif;
+    color: var(--text);
+    background: radial-gradient(circle at top left, rgba(96,224,211,0.22), transparent 30%),
+                linear-gradient(135deg, var(--bg-start), var(--bg-end));
     display: flex;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
+    padding: 24px;
 }
 
-/* GLASS CARD */
-.card {
-    background: rgba(255,255,255,0.15);
-    backdrop-filter: blur(12px);
-    padding: 30px;
-    border-radius: 15px;
-    width: 320px;
-    box-shadow: 0 0 30px rgba(0,0,0,0.2);
-    animation: fadeIn 1s ease-in;
+.container {
+    width: min(420px, 100%);
+    padding: 32px;
+    border-radius: 28px;
+    background: var(--card);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
+    border: 1px solid rgba(255,255,255,0.08);
 }
 
-/* INPUT */
+h1 {
+    margin: 0 0 16px;
+    font-size: 2rem;
+    letter-spacing: 0.02em;
+}
+
+p.subtitle {
+    margin: 0 0 28px;
+    color: var(--muted);
+}
+
 input {
     width: 100%;
-    padding: 10px;
-    margin: 10px 0;
-    border-radius: 8px;
-    border: none;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.06);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s ease;
 }
 
-/* BUTTON */
+input:focus {
+    border-color: rgba(96,224,211,0.7);
+}
+
 button {
     width: 100%;
-    padding: 10px;
-    background: #00ffcc;
+    padding: 14px 16px;
+    border-radius: 14px;
     border: none;
-    border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+    color: #042a32;
+    font-weight: 700;
     cursor: pointer;
-    transition: 0.3s;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
+
 button:hover {
-    transform: scale(1.05);
+    transform: translateY(-1px);
+    box-shadow: 0 18px 40px rgba(96,224,211,0.18);
 }
 
-/* LINK */
-a {
-    color: white;
-    text-decoration: none;
-}
-
-/* ERROR */
-.error {
-    color: red;
+.bottom-text {
+    margin-top: 20px;
     text-align: center;
+    font-size: 0.96rem;
+    color: var(--muted);
 }
 
-/* ANIMATION */
-@keyframes fadeIn {
-    from {opacity: 0; transform: translateY(20px);}
-    to {opacity: 1;}
+.bottom-text a {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.error {
+    margin: 12px 0 0;
+    padding: 12px 14px;
+    background: rgba(255, 66, 66, 0.12);
+    color: #ffc4c4;
+    border-radius: 12px;
+    text-align: center;
 }
 </style>
 
 </head>
 
 <body>
+<div class="container">
+    <h1>Welcome Back</h1>
+    <p class="subtitle">Login to access your dengue risk dashboard and prediction history.</p>
 
-<div class="card">
-<h2>🔐 Login</h2>
+    <form method="POST">
+        <input name="username" placeholder="Username" required autocomplete="username">
+        <input name="password" type="password" placeholder="Password" required autocomplete="current-password">
+        <button>Login</button>
+    </form>
 
-<form method="POST">
-<input name="username" placeholder="Username" required>
-<input name="password" type="password" placeholder="Password" required>
+    {% if error %}
+    <p class="error">{{ error }}</p>
+    {% endif %}
 
-<button>Login</button>
-</form>
-
-{% if error %}
-<p class="error">{{ error }}</p>
-{% endif %}
-
-<p>Don't have an account? <a href="/signup">Signup</a></p>
+    <p class="bottom-text">New here? <a href="/signup">Create an account</a></p>
 </div>
-
 </body>
 </html>

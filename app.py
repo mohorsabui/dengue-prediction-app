@@ -8,6 +8,7 @@ import csv
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from history import init_storage, get_all_users, user_exists, register_user, verify_user, get_user_history, add_prediction_record
 
 # Load environment variables
 load_dotenv()
@@ -66,9 +67,9 @@ else:
 # Initialize Gemini model
 model = genai.GenerativeModel("gemini-2.5-flash")
 
-# Storage
-users = {}
-history = {}
+# Initialize persistent storage
+init_storage()
+print("✅ Storage initialized successfully")
 
 # ---------------- HOME ---------------- #
 @app.route("/")
@@ -82,13 +83,9 @@ def login():
         u = request.form["username"]
         p = request.form["password"]
 
-        if u in users and users[u] == p:
+        if verify_user(u, p):
             session["user"] = u
-
-            # 🔥 FIX: ensure history exists
-            if u not in history:
-                history[u] = []
-
+            print(f"✅ User '{u}' logged in successfully")
             return redirect("/dashboard")
 
         return render_template("login.html", error="Invalid credentials")
@@ -102,10 +99,18 @@ def signup():
         u = request.form["username"]
         p = request.form["password"]
 
-        users[u] = p
-        history[u] = []   # create history at signup
-
-        return redirect("/login")
+        if user_exists(u):
+            return render_template("signup.html", error="Username already exists")
+        
+        if not u or not p:
+            return render_template("signup.html", error="Username and password are required")
+        
+        success, message = register_user(u, p)
+        if success:
+            print(f"✅ User '{u}' registered successfully")
+            return redirect("/login")
+        else:
+            return render_template("signup.html", error=message)
 
     return render_template("signup.html")
 
@@ -121,9 +126,12 @@ def dashboard():
     if "user" not in session:
         return redirect("/login")
 
+    user = session["user"]
+    user_history = get_user_history(user)
+    
     return render_template(
         "index.html",
-        history=history.get(session["user"], [])
+        history=user_history
     )
 
 # ---------------- PREDICT ---------------- #
@@ -175,20 +183,17 @@ def predict():
 
     print("PREDICTION:", percent)
 
-    record = {
-        "time": datetime.now().strftime("%H:%M:%S"),
-        "percent": percent
+    # Save prediction to user history
+    add_prediction_record(user, result, percent)
+    
+    # Get updated history
+    user_history = get_user_history(user)
+
+    return {
+        "prediction_text": result,
+        "probability": percent,
+        "history": user_history
     }
-
-    # 🔥 FINAL FIX (no KeyError ever)
-    history.setdefault(user, []).append(record)
-
-    return render_template(
-        "index.html",
-        prediction_text=result,
-        probability=percent,
-        history=history[user]
-    )
 
 # ---------------- CHATBOT ---------------- #
 @app.route("/chat", methods=["POST"])

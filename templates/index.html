@@ -125,7 +125,7 @@ button {
 <div id="prediction" class="glass">
 <h2>🚀 Prediction</h2>
 
-<form action="/predict" method="POST">
+<form id="predictionForm">
 
 <label>Days: <span id="days_val">5</span></label>
 <input type="range" name="days" min="1" max="10" value="5"
@@ -160,14 +160,11 @@ oninput="hct_val.innerText=this.value">
 <input type="range" name="platelet" min="10000" max="500000" step="1000" value="250000"
 oninput="plt_val.innerText=this.value">
 
-<button onclick="clickSound()">Predict</button>
+<button type="button" onclick="submitPrediction()">Predict</button>
 
 </form>
 
-{% if prediction_text %}
-<h3>{{ prediction_text }}</h3>
-<h4>Risk: {{ probability }}%</h4>
-{% endif %}
+<div id="predictionResult"></div>
 
 </div>
 
@@ -194,17 +191,33 @@ oninput="plt_val.innerText=this.value">
 
 <!-- CHART -->
 <script>
-let data = JSON.parse(document.getElementById("history-data").textContent);
-
-new Chart(document.getElementById("chart"), {
-    type: 'bar',
-    data: {
-        labels: data.map(x=>x.time),
-        datasets: [{
-            label: 'Risk %',
-            data: data.map(x=>x.percent),
-            animation: { duration: 1500 }
-        }]
+document.addEventListener('DOMContentLoaded', function() {
+    let data = JSON.parse(document.getElementById("history-data").textContent);
+    
+    if (data && data.length > 0) {
+        predictionChart = new Chart(document.getElementById("chart"), {
+            type: 'bar',
+            data: {
+                labels: data.map(x=>x.time),
+                datasets: [{
+                    label: 'Risk %',
+                    data: data.map(x=>x.percent),
+                    backgroundColor: 'rgba(0, 255, 213, 0.6)',
+                    borderColor: 'rgba(0, 255, 213, 1)',
+                    borderWidth: 2,
+                    animation: { duration: 1500 }
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
     }
 });
 </script>
@@ -244,6 +257,73 @@ speak(d.reply);
 <script>
 function clickSound(){
 new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3").play();
+}
+</script>
+
+<!-- PREDICTION AJAX -->
+<script>
+let predictionChart = null;
+
+function submitPrediction() {
+    clickSound();
+    
+    const form = document.getElementById('predictionForm');
+    const formData = new FormData(form);
+    
+    fetch('/predict', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Display prediction result
+        const resultDiv = document.getElementById('predictionResult');
+        resultDiv.innerHTML = `
+            <h3 style="color: #00ffd5; margin-top: 20px;">${data.prediction_text}</h3>
+            <h4 style="color: #00aaff;">Risk: ${data.probability}%</h4>
+        `;
+        
+        // Update chart with new history
+        updateHistoryChart(data.history);
+        
+        console.log('✅ Prediction saved:', data);
+    })
+    .catch(error => {
+        console.error('❌ Error:', error);
+        alert('Error making prediction');
+    });
+}
+
+function updateHistoryChart(historyData) {
+    const ctx = document.getElementById('chart').getContext('2d');
+    
+    if (predictionChart) {
+        predictionChart.destroy();
+    }
+    
+    predictionChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: historyData.map(x => x.time),
+            datasets: [{
+                label: 'Risk %',
+                data: historyData.map(x => x.percent),
+                backgroundColor: 'rgba(0, 255, 213, 0.6)',
+                borderColor: 'rgba(0, 255, 213, 1)',
+                borderWidth: 2,
+                animation: { duration: 1500 }
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
 }
 </script>
 
